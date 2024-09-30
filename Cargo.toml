@@ -1,5 +1,5 @@
 [package]
-name = "wormwork"
+name = "workworm"
 version = "0.1.0"
 authors = ["rap6572@gmail.com" ] 
 edition = "2021"
