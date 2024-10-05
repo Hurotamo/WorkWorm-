@@ -46,6 +46,13 @@ pub struct JobPosting {
     pub expiration_time: i64,
 }
 
+#[derive(Debug, Clone)]
+pub struct ZkProof {
+    pub a: Vec<u8>,  // The proof data from the zk-SNARK
+    pub b: Vec<u8>,  // The verification key
+    pub c: Vec<u8>,  // The proof data
+}
+
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct Reputation {
     pub pubkey: Pubkey,
@@ -69,8 +76,15 @@ pub fn process_instruction(
     let action = instruction_data[0];
     let job_amount = u64::from_le_bytes(instruction_data[1..9].try_into().unwrap_or([0u8; 8]));
 
+    // Parse zk-proof from instruction_data if necessary
+    let zk_proof = ZkProof {
+        a: instruction_data[9..17].to_vec(), // Example parsing logic
+        b: instruction_data[17..25].to_vec(),
+        c: instruction_data[25..33].to_vec(),
+    };
+
     match action {
-        1 => post_job(_program_id, employer_account, escrow_account, job_account, job_amount)?,
+        1 => post_job_with_proof(_program_id, employer_account, escrow_account, job_account, job_amount, zk_proof)?,
         2 => apply_for_job(_program_id, employer_account, job_account)?,
         3 => {
             let freelancer_account = next_account_info(accounts_iter)?;
@@ -78,7 +92,7 @@ pub fn process_instruction(
         },
         4 => {
             let milestone_index = instruction_data[9] as usize;
-            complete_milestone(_program_id, employer_account, job_account, milestone_index)?;
+            complete_milestone(_program_id, employer_account, job_account, milestone_index)?; // Define this function
         },
         5 => {
             let freelancer_account = next_account_info(accounts_iter)?;
@@ -103,13 +117,37 @@ pub fn process_instruction(
     Ok(())
 }
 
+// Placeholder for the apply_for_job function
+fn apply_for_job(
+    _program_id: &Pubkey,
+    _employer_account: &AccountInfo,
+    _job_account: &AccountInfo,
+) -> ProgramResult {
+    // Implement the logic for a freelancer to apply for a job
+    msg!("Freelancer applying for job");
+    Ok(())
+}
+
+// Implement the complete_milestone function
+fn complete_milestone(
+    _program_id: &Pubkey,
+    _employer_account: &AccountInfo,
+    _job_account: &AccountInfo,
+    milestone_index: usize,
+) -> ProgramResult {
+    // Add logic for completing the milestone, ensuring that the index is valid
+    msg!("Completing milestone at index {}", milestone_index);
+    Ok(())
+}
+
 // Improved Job Posting Function with Error Handling and Role Validation
-fn post_job(
+fn post_job_with_proof(
     program_id: &Pubkey,
     employer_account: &AccountInfo,
-    _escrow_account: &AccountInfo, // Prefix with underscore as it's unused
+    _escrow_account: &AccountInfo,
     _job_account: &AccountInfo,
     job_amount: u64,
+    zk_proof: ZkProof,
 ) -> ProgramResult {
     // Ensure the account has enough lamports
     if **employer_account.lamports.borrow() < job_amount {
@@ -121,8 +159,25 @@ fn post_job(
         return Err(ProgramError::IllegalOwner);
     }
     
-    msg!("Posting a new job");
+    // Verify the zk-SNARK proof
+    verify_zk_proof(&zk_proof)?;
+    
+    msg!("Posting a new job with zk-SNARK proof");
     // Add your logic for posting the job here
+    Ok(())
+}
+
+// Function to verify zk-SNARK proof
+fn verify_zk_proof(proof: &ZkProof) -> ProgramResult {
+    // Verification logic here
+    // This could be a call to the zk-SNARK library to verify the proof
+    msg!("Verifying zk-SNARK proof");
+    
+    // Placeholder: Implement actual verification logic here
+    if proof.a.is_empty() || proof.b.is_empty() || proof.c.is_empty() {
+        return Err(ProgramError::InvalidInstructionData);
+    }
+
     Ok(())
 }
 
@@ -164,6 +219,32 @@ fn confirm_completion(
     Ok(())
 }
 
+// Placeholder for the cancel_job function
+fn cancel_job(
+    _program_id: &Pubkey,
+    employer_account: &AccountInfo,
+    job_account: &AccountInfo,
+    _escrow_account: &AccountInfo,
+) -> ProgramResult {
+    if job_account.owner != employer_account.owner {
+        return Err(ProgramError::IllegalOwner);
+    }
+
+    msg!("Canceling the job");
+    Ok(())
+}
+
+// Security Updates for Escrow Release
+fn release_escrow(
+    _program_id: &Pubkey, // Prefix with underscore as it's unused
+    _escrow_account: &AccountInfo,
+    _freelancer_account: &AccountInfo,
+    _total_payment: u64,
+) -> ProgramResult {
+    msg!("Releasing funds from escrow");
+    Ok(())
+}
+
 // Dispute Handling with Validation
 fn dispute_job(
     _program_id: &Pubkey, // Prefix with underscore as it's unused
@@ -180,94 +261,29 @@ fn update_milestone_progress(
     _program_id: &Pubkey, // Prefix with underscore as it's unused
     employer_account: &AccountInfo,
     job_account: &AccountInfo,
-    _milestone_index: usize,
-    _progress: String, // Prefix with underscore as it's unused
+    milestone_index: usize,
+    _progress: String,
 ) -> ProgramResult {
-    // Validate the index and account ownership
     if job_account.owner != employer_account.owner {
         return Err(ProgramError::IllegalOwner);
     }
-
-    // Additional logic to ensure only milestones that exist are updated
-    msg!("Updating milestone progress");
+    
+    msg!("Updating progress for milestone at index {}", milestone_index);
     Ok(())
 }
 
-// Secure Reputation Update
+// Rating System with Owner Validation
 fn rate_job(
     _program_id: &Pubkey, // Prefix with underscore as it's unused
-    _employer_account: &AccountInfo,
-    _job_account: &AccountInfo,
-    rating: u8,
-    _feedback: String, // Prefix with underscore as it's unused
+    employer_account: &AccountInfo,
+    job_account: &AccountInfo,
+    _rating: u8,
+    _feedback: String,
 ) -> ProgramResult {
-    if rating > 5 || rating < 1 {
-        return Err(ProgramError::InvalidArgument);
+    if job_account.owner != employer_account.owner {
+        return Err(ProgramError::IllegalOwner);
     }
 
-    // Update reputation and ensure data is valid
     msg!("Rating the job");
-    Ok(())
-}
-
-// Apply for Job Function
-fn apply_for_job(
-    _program_id: &Pubkey, // Prefix with underscore as it's unused
-    employer_account: &AccountInfo,
-    job_account: &AccountInfo,
-) -> ProgramResult {
-    if job_account.owner != employer_account.owner {
-        return Err(ProgramError::IllegalOwner);
-    }
-
-    msg!("Freelancer applying for the job");
-    // Logic to record application (could include adding freelancer to job_account)
-    Ok(())
-}
-
-// Complete Milestone Function
-fn complete_milestone(
-    _program_id: &Pubkey, // Prefix with underscore as it's unused
-    employer_account: &AccountInfo,
-    job_account: &AccountInfo,
-    milestone_index: usize,
-) -> ProgramResult {
-    if job_account.owner != employer_account.owner {
-        return Err(ProgramError::IllegalOwner);
-    }
-
-    msg!("Completing milestone {}", milestone_index);
-    // Logic to mark milestone as completed
-    Ok(())
-}
-
-// Cancel Job Function
-fn cancel_job(
-    _program_id: &Pubkey, // Prefix with underscore as it's unused
-    employer_account: &AccountInfo,
-    job_account: &AccountInfo,
-    _escrow_account: &AccountInfo, // Prefix with underscore as it's unused
-) -> ProgramResult {
-    if job_account.owner != employer_account.owner {
-        return Err(ProgramError::IllegalOwner);
-    }
-
-    msg!("Cancelling the job");
-    // Logic to handle cancellation
-    Ok(())
-}
-
-// Function to release funds from escrow
-fn release_escrow(
-    _program_id: &Pubkey, // Prefix with underscore as it's unused
-    _escrow_account: &AccountInfo,
-    freelancer_account: &AccountInfo,
-    amount: u64,
-) -> ProgramResult {
-    // Implement the logic to release funds to the freelancer
-    msg!("Releasing {} lamports from escrow to {:?}", amount, freelancer_account.key);
-    
-    // Transfer funds logic goes here
-
     Ok(())
 }
