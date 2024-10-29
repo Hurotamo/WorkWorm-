@@ -1,4 +1,4 @@
-# **WorkWorm - A Decentralized Freelance Marketplace**
+# **WorkWorm - A Decentralized Freelance Marketplace
 
 **WorkWorm** is a decentralized freelance marketplace built on the **Solana blockchain**, leveraging the **Wormhole protocol** for cross-chain interoperability and **Zero-Knowledge (zk) technology** for enhanced privacy and scalability. WorkWorm offers freelancers and clients a secure, efficient, and private platform to collaborate on projects, manage payments, and ensure transparent yet confidential transactions.
 
